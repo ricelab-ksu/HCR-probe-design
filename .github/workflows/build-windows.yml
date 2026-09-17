@@ -54,6 +54,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download NSIS artifact
         uses: actions/download-artifact@v4
         with:
@@ -62,6 +67,7 @@ jobs:
       - name: Publish Windows installer to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           for f in *.exe; do
