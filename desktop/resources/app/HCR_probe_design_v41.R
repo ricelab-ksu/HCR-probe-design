@@ -104,7 +104,7 @@
 library(shiny)
 
 PORT <- 7788
-APP_VERSION <- "42.1.0"
+APP_VERSION <- "42.2.0"
 APP_TITLE <- "HCR Probe Designer"
 
 # Reference file directory (contains d_<species>/ subfolders with rna.fna).
@@ -3863,6 +3863,7 @@ find_zip_binary <- function() {
   hit <- Sys.which("zip")
   if (nzchar(hit)) return(hit)
   candidates <- c("/usr/bin/zip",                                   # macOS
+                  file.path(R.home("bin"), "zip.exe"),              # bundled R for Windows
                   "C:/Rtools/bin/zip.exe",                          # Rtools
                   "C:/Program Files/Git/usr/bin/zip.exe",           # Git for Windows
                   file.path(Sys.getenv("RTOOLS40_HOME", ""), "usr", "bin", "zip.exe"))

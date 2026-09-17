@@ -1,0 +1,48 @@
+name: build-windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'R version to bundle (default 4.6.1)'
+        required: false
+        default: '4.6.1'
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install npm dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Bundle portable R runtime (Windows)
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $ver = if ("${{ github.event.inputs.version }}") { "${{ github.event.inputs.version }}" } else { "4.6.1" }
+          powershell -ExecutionPolicy Bypass -File scripts\bundle_r_win.ps1 -Version $ver
+
+      - name: Build Windows installer (NSIS)
+        working-directory: desktop
+        run: npm run dist:win
+
+      - name: Upload NSIS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcr-probe-designer-windows
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.blockmap
+          if-no-files-found: error

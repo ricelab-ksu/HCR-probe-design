@@ -15,10 +15,10 @@
 #   4. Self-test the bundled Rscript.
 #
 # Usage (PowerShell, from the project root):
-#   powershell -ExecutionPolicy Bypass -File scripts\bundle_r_win.ps1 [-Version 4.6.0]
+#   powershell -ExecutionPolicy Bypass -File scripts\bundle_r_win.ps1 [-Version 4.6.1]
 # ============================================================================
 param(
-    [string]$Version = "4.6.0"
+    [string]$Version = "4.6.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,9 +27,10 @@ $ResDir = Join-Path $Dist "resources\r"
 $BuildDir = Join-Path $Dist "build"
 New-Item -ItemType Directory -Force -Path $BuildDir, $ResDir | Out-Null
 
-$Mv = ($Version -split '\.')[0..1] -join '-'
 $Installer = "R-$Version-win.exe"
-$Url = "https://cloud.r-project.org/bin/windows/base/$Mv/$Installer"
+# CRAN serves the current Windows R installer directly under base/ (no per-
+# version subdir). e.g. https://cloud.r-project.org/bin/windows/base/R-4.6.1-win.exe
+$Url = "https://cloud.r-project.org/bin/windows/base/$Installer"
 $InstallerPath = Join-Path $BuildDir $Installer
 
 Write-Host "==> HCR Probe Designer - portable R bundle (v$Version, Windows x64)"
@@ -55,20 +56,21 @@ if (-not (Test-Path (Join-Path $targetDir "bin\Rscript.exe"))) {
 
 $Rscript = Join-Path $targetDir "bin\Rscript.exe"
 $RLibDest = Join-Path $ResDir "library"
+$RLibUnix = $RLibDest.Replace('\', '/')
 New-Item -ItemType Directory -Force -Path $RLibDest | Out-Null
 
 # Packages to install from CRAN binary repo
-$installScript = @'
+$installScript = @"
 options(repos = c(CRAN = "https://cloud.r-project.org"))
-.libPaths(c("' + $RLibDest.Replace('\', '/') + '", .libPaths()))
+.libPaths(c("$RLibUnix", .libPaths()))
 pkgs <- c("shiny", "httpuv", "bslib", "sass", "htmltools", "jsonlite")
 missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
 cat("Installing ", length(missing), " missing packages...\n", sep = "")
 if (length(missing)) {
-  install.packages(missing, lib = "' + $RLibDest.Replace('\', '/') + '", type = "binary")
+  install.packages(missing, lib = "$RLibUnix", type = "binary")
 }
 print(sessionInfo())
-'@
+"@
 $scriptPath = Join-Path $BuildDir "install_app_pkgs_win.R"
 Set-Content -Path $scriptPath -Value $installScript -Encoding ASCII
 Write-Host "==> Installing shiny + deps into bundled library"
@@ -77,12 +79,12 @@ Write-Host "==> Installing shiny + deps into bundled library"
 # Self-test
 Write-Host "==> Self-test"
 $smoke = Join-Path $BuildDir "smoke_win.R"
-Set-Content -Path $smoke -Value @'
-.libPaths(c("' + $RLibDest.Replace('\', '/') + '", .libPaths()))
+Set-Content -Path $smoke -Value @"
+.libPaths(c("$RLibUnix", .libPaths()))
 cat("R_HOME=", R.home(), "\n", sep="")
 stopifnot(requireNamespace("shiny", quietly = TRUE))
 cat(paste0("HCR_PORT=", httpuv::randomPort(30000L, 60000L)), "\n")
-'@ -Encoding ASCII
+"@ -Encoding ASCII
 $env:R_LIBS = $RLibDest
 & $Rscript --vanilla $smoke
 
