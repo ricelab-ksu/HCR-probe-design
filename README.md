@@ -1,8 +1,9 @@
 # HCR Probe Designer
 
-High-throughput **HCR v3.0 probe-set design** (amplifiers B1–B17) from a
-gene-list CSV, with cross-species probe conservation checks and a standalone
-Electron desktop app (bundled R runtime — no R install required for users).
+High-throughput **HCR v2.0/v3.0 probe-set design** (amplifiers B1–B5 by
+default; B1–B17 optional) from a gene-list CSV, with cross-species probe
+conservation checks and a standalone Electron desktop app (bundled R runtime —
+no R install required for users).
 
 ## What it does
 
@@ -15,8 +16,9 @@ For each gene in your CSV it designs 52-bp probe targets (two 25-mers + a
   (45 nt total, 90 bp per pair)
 - **Amplifier is *not* a user choice** — the engine rotates B1–B5 internally
   for oligo naming, and the **primary deliverable** (HCR PROBE MAKER all-amp
-  CSV) lists every B1–B17 amplifier combination for each 52-bp target so the
-  amplifier can be chosen at the bench.
+  CSV) lists every amplifier in the selected set for each 52-bp target so the
+  amplifier can be chosen at the bench. The lab's in-situ kit is HCR v2.0, so
+  **B1–B5 is the default**; HCR v3.0 adds B7/B9/B10/B13–B15/B17.
 
 ## Downloads
 
@@ -30,6 +32,10 @@ open) are published on the **[Releases page][releases]**:
 
 - **CSV input** (`gene`, optional `species`, `amplifier`, `transcript`,
   `sequence`, `ortholog` columns) — see `HCR_template.csv`.
+- **Amplifier set toggle** — the lab's in-situ kit is **HCR v2.0**, so probes
+  use **B1–B5 by default**; select **HCR v3.0** in Settings to also load
+  B7/B9/B10/B13–B15/B17. The HCR PROBE MAKER all-amp CSV lists every
+  amplifier in the chosen set.
 - **Lazy NCBI reference download** — no genomes ship with the app; each
   species' RefSeq set (`rna.fna.gz` + `genomic.fna.gz` + `genomic.gff.gz`) is
   fetched on first use. Both GTF and GFF3 attribute styles are parsed.
@@ -38,7 +44,7 @@ open) are published on the **[Releases page][releases]**:
 - **Cross-species conservation check** — reuse a probe set in other species;
   per-pair verdicts (`exact` / `near` / `risky`) with ortholog accessions.
 - **Download all (ZIP)** — every output file of a run, for lab record keeping:
-  - `HCR_probe_maker_all_amplifiers.csv` (primary; all B1–B17 combos)
+  - `HCR_probe_maker_all_amplifiers.csv` (primary; every amplifier in the set)
   - `HCR_oligo_order.csv`
   - `HCR_antisense_halves.csv` (Benchling primer upload)
   - `HCR_pool_summary.csv`

@@ -1,6 +1,6 @@
 {
   "name": "hcr-probe-designer",
-  "version": "42.0.0",
+  "version": "42.1.0",
   "description": "HCR Probe Designer — standalone desktop application (v41 cross-species edition)",
   "main": "main.js",
   "scripts": {

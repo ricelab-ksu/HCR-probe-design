@@ -2,15 +2,17 @@
 # ============================================================================
 # HCR PROBE DESIGNER (v41 - cross-species edition)
 # ============================================================================
-# Designs HCR v3.0 probe sets (amplifiers B1-B5) from a gene-list CSV.
+# Designs HCR v3.0 probe sets (amplifiers B1-B5 by default; v2/v3 selectable)
+# from a gene-list CSV.
 # Probe construction replicates the lab's "HCR PROBE MAKER Rice lab" sheet:
 #   52-bp target = two 25-mers + 2-bp gap; each oligo = 18-nt initiator half
 #   + 2-nt spacer + 25-nt antisense half (45 nt total, 90 bp per pair).
 # The amplifier is NOT a user choice: the engine rotates B1-B5 per gene for
 # the oligo naming, while the primary deliverable (HCR PROBE MAKER all-amp
-# CSV) lists every B1-B17 amplifier combination for each 52-bp target, so
-# the amplifier can be picked at the bench. "Download all (ZIP)" bundles the
-# complete output set (including HCR_design_log.txt) for lab record keeping.
+# CSV) lists every amplifier in the SELECTED amplifier set for each 52-bp
+# target. The lab's in-situ kit is HCR v2.0, so the set defaults to B1-B5;
+# selecting "HCR v3.0" adds B7/B9/B10/B13-B15/B17. "Download all (ZIP)"
+# bundles the complete output set (including HCR_design_log.txt).
 #
 # NEW IN v34: CROSS-SPECIES CHECK
 #   To reuse the same probe set in other species, enter a comma-separated
@@ -102,7 +104,7 @@
 library(shiny)
 
 PORT <- 7788
-APP_VERSION <- "42.0.0"
+APP_VERSION <- "42.1.0"
 APP_TITLE <- "HCR Probe Designer"
 
 # Reference file directory (contains d_<species>/ subfolders with rna.fna).
@@ -176,7 +178,18 @@ AMPLIFIERS <- list(
   B17 = list(half1 = "CGATTGTTTGTTGTGGAC", spacer1 = "AA",
              half2 = "GCATGCTAATCGGATGAG", spacer2 = "AA")
 )
-AMP_LIST <- names(AMPLIFIERS)
+AMP_LIST <- names(AMPLIFIERS)   # every amplifier the engine knows about
+# The lab's in-situ kit is HCR v2.0, so only B1-B5 are available by default.
+# The v3 extras (B7, B9, B10, B13-B15, B17) are used only when the user
+# explicitly selects "HCR v3.0" in the Settings block.
+AMP_V2 <- c("B1", "B2", "B3", "B4", "B5")
+
+# Active amplifier set for a run: B1-B5 (v2) unless the v3 set is requested.
+# NULL-safe so batch/env-driven settings never error before amp_set is set.
+active_amps <- function(settings) {
+  amps <- if (!is.null(settings) && !is.null(settings$amp_set)) settings$amp_set else "v2"
+  if (identical(amps, "v3")) AMP_LIST else AMP_V2
+}
 AMP_COLORS <- c(B1 = "#0ea5e9", B2 = "#8b5cf6", B3 = "#10b981",
                 B4 = "#f59e0b", B5 = "#ef4444", B7 = "#ec4899",
                 B9 = "#14b8a6", B10 = "#f97316", B13 = "#6366f1",
@@ -1790,8 +1803,12 @@ build_pair <- function(gene, amp, pair_index, cand) {
 
 # Resolve sequence for one gene job, then design its probe pairs.
 design_gene <- function(job, settings, index, cache) {
-  amp <- if (!is.null(job$amplifier) && job$amplifier %in% AMP_LIST) job$amplifier
-         else if (settings$default_amp == "auto") AMP_LIST[(index %% length(AMP_LIST)) + 1]
+  amps <- active_amps(settings)
+  # Explicit CSV "amplifier" column wins, but only if that amplifier is in the
+  # selected set (v2 mode = B1-B5 only). A v3 amplifier named in the CSV while
+  # v2 mode is active falls back to auto B1-B5 rotation.
+  amp <- if (!is.null(job$amplifier) && job$amplifier %in% amps) job$amplifier
+         else if (settings$default_amp == "auto") amps[(index %% length(amps)) + 1]
          else settings$default_amp
   res <- list(gene = job$gene, species = job$species, amplifier = amp, status = "ok",
               warnings = character(0), accession = NA, seq_len = 0,
@@ -2694,6 +2711,10 @@ ui <- fluidPage(
                    choices = c("Strict (recommended)" = "strict",
                                "Loose (mirrors auto-relax: GC +/-5, homopolymer +1, dG +/-15, Tm +/-10, compositions off)" = "loose"),
                    selected = "strict", inline = TRUE),
+      radioButtons("amp_set", "Amplifier set",
+                   choices = c("HCR v2.0 \u2014 B1\u2013B5 only" = "v2",
+                               "HCR v3.0 \u2014 all B1\u2013B17"  = "v3"),
+                   selected = "v2", inline = TRUE),
       fluidRow(
         column(6, numericInput("pairs_per_gene", "Pairs per gene", 6, min = 1, max = 40)),
         column(6, numericInput("spacing", "Spacing between targets (bp)", 5, min = 0))
@@ -2861,10 +2882,10 @@ build_combined_fasta <- function(results) {
 # Build a row for the Excel-style all-amplifier table.
 # For each 52-bp target, output probe sequences for ALL amplifiers (B1-B5).
 # Columns: Probe name, 52bp_Reverse_Comp, 52bp_Gene_Orientation,
-#          B1-1, B1-2, B2-1, B2-2, B3-1, B3-2, B4-1, B4-2, B5-1, B5-2
+#          B1-1, B1-2, B2-1, B2-2, ... for every amplifier in `amps`.
 build_all_amp_row <- function(gene, amp, pair_index, target52, accession = "", start = 0, end = 0, gc1 = 0, gc2 = 0,
                               dg = NA_real_, tm = NA_real_, dg1 = NA_real_, dg2 = NA_real_,
-                              ot_n = NA_integer_, ot_genes = "") {
+                              ot_n = NA_integer_, ot_genes = "", amps = AMP_V2) {
   rc52 <- revcomp(target52)
   pad <- sprintf("%02d", pair_index)
   probe_name <- paste0(gene, " #", pair_index)
@@ -2873,11 +2894,11 @@ build_all_amp_row <- function(gene, amp, pair_index, target52, accession = "", s
   odd_antisense  <- substr(rc52, nchar(rc52) - 24, nchar(rc52))   # 25 nt
   even_antisense <- substr(rc52, 1, 25)                            # 25 nt
 
-  # Build probe sequences for every amplifier in AMP_LIST
-  probes <- character(2 * length(AMP_LIST))
-  names(probes) <- as.vector(rbind(paste0(AMP_LIST, "-1"), paste0(AMP_LIST, "-2")))
+  # Build probe sequences for every amplifier in the selected set
+  probes <- character(2 * length(amps))
+  names(probes) <- as.vector(rbind(paste0(amps, "-1"), paste0(amps, "-2")))
 
-  for (a_name in AMP_LIST) {
+  for (a_name in amps) {
     a <- AMPLIFIERS[[a_name]]
     # Odd probe: initiator_half1 + spacer1 + last 25 nt of RC(52bp)
     odd <- paste0(a$half1, a$spacer1, odd_antisense)
@@ -2910,8 +2931,9 @@ build_all_amp_row <- function(gene, amp, pair_index, target52, accession = "", s
   ), as.list(probes))
 }
 
-# Build the full all-amplifier table from results
-build_all_amp_table <- function(results) {
+# Build the full all-amplifier table from results (one row per target, with a
+# probe-sequences column pair for every amplifier in `amps`).
+build_all_amp_table <- function(results, amps = AMP_V2) {
   ok <- Filter(function(r) r$status == "ok" && length(r$pairs) > 0, results)
   if (!length(ok)) return(NULL)
 
@@ -2919,7 +2941,8 @@ build_all_amp_table <- function(results) {
     do.call(rbind, lapply(r$pairs, function(p) {
       as.data.frame(build_all_amp_row(r$gene, r$amplifier, p$pair, p$target52,
                     r$accession, p$start, p$end, p$gc1, p$gc2,
-                    p$dg, p$tm, p$dg1, p$dg2, p$ot_n, p$ot_genes),
+                    p$dg, p$tm, p$dg1, p$dg2, p$ot_n, p$ot_genes,
+                    amps = amps),
                     stringsAsFactors = FALSE)
     }))
   }))
@@ -3044,8 +3067,12 @@ server <- function(input, output, session) {
     settings$max_hp         <- input$max_hp
     # Amplifiers are NOT user-facing: the engine rotates B1-B5 per gene for the
     # oligo naming, and the primary deliverable (HCR PROBE MAKER all-amp CSV)
-    # carries every B1-B17 combination so the choice can be made at the bench.
+    # carries every combination in the selected amplifier set so the choice can
+    # be made at the bench.
     settings$default_amp    <- "auto"
+    # Which amplifiers are available. Default v2 (B1-B5); v3 adds B7/B9/B10/
+    # B13-B15/B17. NULL-guarded for older saved UI state.
+    settings$amp_set        <- if (is.null(input$amp_set)) "v2" else input$amp_set
     settings$ncbi_fallback  <- input$ncbi_fallback
     settings$relax_filters  <- input$relax_filters
     settings$use_shared_exons <- input$use_shared_exons
@@ -3127,7 +3154,7 @@ server <- function(input, output, session) {
            strong(length(pools())), " oPool(s)"),
       span(
         downloadButton("dl_zip", "Download all (ZIP)", class = "btn-primary btn-sm"),
-        downloadButton("dl_all_amp", "HCR PROBE MAKER all-amp CSV (all B1\u2013B17 combos)", class = "btn-primary btn-sm"),
+        downloadButton("dl_all_amp", "HCR PROBE MAKER all-amp CSV (selected amplifier set)", class = "btn-primary btn-sm"),
         downloadButton("dl_order", "Oligo order CSV", class = "btn-default btn-sm"),
         downloadButton("dl_antisense_fasta", "Antisense halves CSV file (For Benchling primer upload)", class = "btn-default btn-sm"),
         downloadButton("dl_pools", "Pool summary", class = "btn-default btn-sm"),
@@ -3137,10 +3164,11 @@ server <- function(input, output, session) {
         downloadButton("dl_fasta", "FASTA (52 bp target sequences shared across all isoforms)", class = "btn-default btn-sm")
       ),
       helpText(style = "font-size:11px; color:#64748b; width:100%; margin-top:6px;",
-               "The HCR PROBE MAKER CSV lists every B1\u2013B17 amplifier combination (odd/even oligos) ",
-               "for each 52-bp target, so the amplifier can be chosen at the bench; the oligo order ",
-               "CSV keeps the auto-assigned B1\u2013B5 set. 'Download all (ZIP)' bundles every output ",
-               "file of this run (plus HCR_design_log.txt) for lab record keeping.")
+               "The HCR PROBE MAKER CSV lists every amplifier in the selected set (B1\u2013B5 for ",
+               "HCR v2.0 by default, or all B1\u2013B17 for v3.0) as odd/even oligos for each 52-bp ",
+               "target, so the amplifier can be chosen at the bench; the oligo order CSV keeps the ",
+               "auto-assigned set. 'Download all (ZIP)' bundles every output file of this run (plus ",
+               "HCR_design_log.txt) for lab record keeping.")
     )
   })
 
@@ -3555,12 +3583,12 @@ server <- function(input, output, session) {
   )
 
   # ---- PRIMARY deliverable: HCR PROBE MAKER all-amplifier CSV -----------------
-  # One row per 52-bp target with the probe sequences for ALL B1-B17 amplifier
-  # combinations, so the amplifier choice can be made at the bench.
+  # One row per 52-bp target with probe sequences for every amplifier in the
+  # selected amplifier set (B1-B5 by default; all B1-B17 when v3.0 chosen).
   output$dl_all_amp <- downloadHandler(
     filename = function() "HCR_probe_maker_all_amplifiers.csv",
     content = function(file) {
-      tbl <- build_all_amp_table(results())
+      tbl <- build_all_amp_table(results(), active_amps(last_settings()))
       if (is.null(tbl)) {
         tbl <- data.frame(Message = "No valid probe designs found.")
       }
@@ -3770,7 +3798,9 @@ build_design_log <- function(results, settings, jobs, check_sps, refs_used,
       paste0("  Gene ", r$gene, " (", r$species, "): status = ", r$status),
       paste0("    amplifier assigned : ", amp_txt,
              if (identical(settings$default_amp, "auto"))
-               " (auto-rotation B1-B5, by gene order)" else ""),
+               paste0(" (auto-rotation over the active amplifier set: ",
+                      paste(active_amps(settings), collapse = "/"), ", by gene order)")
+             else ""),
       paste0("    pairs designed     : ", length(r$pairs)),
       paste0("    candidates found   : ", r$n_candidates),
       paste0("    accession          : ", if (is.na(r$accession)) "-" else r$accession),
@@ -3866,8 +3896,8 @@ write_all_run_files <- function(out_dir, results, settings, pools, jobs,
                                 csv_path = NULL) {
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-  # 1. PRIMARY deliverable: HCR PROBE MAKER all-amp CSV (all B1-B17 combos).
-  amp_tbl <- build_all_amp_table(results)
+  # 1. PRIMARY deliverable: HCR PROBE MAKER all-amp CSV (selected amp set).
+  amp_tbl <- build_all_amp_table(results, active_amps(settings))
   if (!is.null(amp_tbl))
     utils::write.csv(amp_tbl,
                      file.path(out_dir, "HCR_probe_maker_all_amplifiers.csv"),
@@ -3931,6 +3961,7 @@ default_settings <- function() {
   s <- list(
     pairs_per_gene = 6, spacing = 5, gc_min = 40, gc_max = 60, max_hp = 4,
     default_amp = "auto", pool_bp = 3300, ncbi_fallback = FALSE,
+    amp_set = "v2",
     relax_filters = FALSE, use_shared_exons = TRUE, avoid_splice_junctions = TRUE,
     use_thermo = TRUE, filter_thermo = FALSE,
     temp_c = 37, na_m = 0.3, oligo_conc = 5e-5,
@@ -3947,6 +3978,12 @@ default_settings <- function() {
     s$stringency <- tolower(sy)
     if (!s$stringency %in% c("strict", "loose"))
       stop("HCR_STRINGENCY must be 'strict' or 'loose' (got '", sy, "')")
+  }
+  as_ <- Sys.getenv("HCR_AMP_SET", unset = "")
+  if (nzchar(as_)) {
+    s$amp_set <- tolower(as_)
+    if (!s$amp_set %in% c("v2", "v3"))
+      stop("HCR_AMP_SET must be 'v2' or 'v3' (got '", as_, "')")
   }
   s
 }
