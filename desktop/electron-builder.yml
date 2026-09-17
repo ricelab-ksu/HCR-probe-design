@@ -1,0 +1,51 @@
+# electron-builder configuration
+appId: org.rice-lab.hcr-probe-designer
+productName: HCR Probe Designer
+copyright: Copyright © 2026 Rice Lab
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - package.json
+
+# 3 tiny files — no reason to use asar (avoids an electron-builder asar
+# integrity bug on some volumes).
+asar: false
+
+extraResources:
+  - from: resources/app
+    to: app
+  - from: resources/reference_files
+    to: reference_files
+  - from: resources/r
+    to: r
+
+mac:
+  category: public.app-category.scientific-software
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  icon: assets/icon.png
+  minimumSystemVersion: "11.0"
+  identity: null
+
+dmg:
+  title: HCR Probe Designer ${version}
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false

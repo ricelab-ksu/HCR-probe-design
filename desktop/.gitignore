@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build/
+resources/r/R.framework/
+resources/r/R-*/
+.DS_Store
+*.log

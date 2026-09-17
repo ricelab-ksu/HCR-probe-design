@@ -1,0 +1,32 @@
+{
+  "name": "hcr-probe-designer",
+  "version": "42.0.0",
+  "description": "HCR Probe Designer — standalone desktop application (v41 cross-species edition)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "bundle:mac": "bash scripts/bundle_r_mac.sh",
+    "bundle:win": "powershell -ExecutionPolicy Bypass -File scripts/bundle_r_win.ps1",
+    "bundle:ref": "node scripts/copy_reference_files.js",
+    "bundle:lean": "node scripts/prune_reference_files.js",
+    "sync:app": "node scripts/sync_app_payload.js",
+    "predist": "npm run sync:app",
+    "predist:mac": "npm run sync:app",
+    "predist:win": "npm run sync:app",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "clean": "rm -rf dist build resources/r/R.framework resources/r/R-*"
+  },
+  "author": "Rice Lab",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^36.7.1",
+    "electron-builder": "^26.0.12"
+  },
+  "allowScripts": {
+    "electron@36.9.5": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

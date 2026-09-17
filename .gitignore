@@ -1,0 +1,13 @@
+# ---- heavy / built / downloaded artifacts (never commit) ----
+reference_files/
+desktop/node_modules/
+desktop/dist/
+desktop/build/
+desktop/resources/r/
+desktop/resources/reference_files/
+
+# ---- macOS / exFAT metadata ----
+.DS_Store
+._*
+*~
+*.log
